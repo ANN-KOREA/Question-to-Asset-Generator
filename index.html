@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Question-to-Asset Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .timeline {
+      position: relative;
+      padding-left: 2rem;
+      margin-top: 1rem;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0.75rem;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: #3b82f6;
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+    }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -0.65rem;
+      top: 0.5rem;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 2px solid white;
+    }
+    .poster-output {
+      display: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <header class="bg-blue-600 text-white py-4 text-center">
+    <h1 class="text-3xl font-bold">Question-to-Asset Generator</h1>
+    <p class="mt-2">Transform your questions into actionable assets</p>
+  </header>
+
+  <div class="container max-w-4xl mx-auto p-4 bg-white rounded-lg shadow-lg mt-6">
+    <h2 class="text-2xl font-semibold mb-4">Ask a Reflective Question</h2>
+    <div class="flex flex-col gap-4">
+      <input
+        id="userId"
+        type="text"
+        placeholder="Enter your user ID (e.g., Ann2025)"
+        class="border border-gray-300 rounded-md p-2"
+      />
+      <textarea
+        id="questionInput"
+        placeholder="E.g., How can I turn my daily habits into assets?"
+        class="border border-gray-300 rounded-md p-2 h-32 resize-y"
+      ></textarea>
+      <div class="flex gap-2">
+        <input
+          id="categoryInput"
+          type="text"
+          placeholder="Enter custom category or select below"
+          class="border border-gray-300 rounded-md p-2 flex-1"
+        />
+        <select
+          id="categorySelect"
+          class="border border-gray-300 rounded-md p-2"
+          onchange="document.getElementById('categoryInput').value = this.value"
+        >
+          <option value="Personal Systems">Personal Systems</option>
+          <option value="Asset Creation">Asset Creation</option>
+          <option value="General Inquiry">General Inquiry</option>
+          <option value="Custom">Custom</option>
+        </select>
+      </div>
+      <div class="flex gap-2">
+        <button
+          onclick="generateAsset()"
+          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+        >
+          Generate Asset
+        </button>
+        <button
+          onclick="saveSession()"
+          class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+        >
+          Save Session
+        </button>
+        <button
+          onclick="generatePoster()"
+          class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700"
+        >
+          Generate Poster
+        </button>
+        <button
+          onclick="clearLog()"
+          class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+        >
+          Clear Log
+        </button>
+      </div>
+    </div>
+
+    <h3 class="text-xl font-semibold mt-6">Generated Asset</h3>
+    <div id="output" class="bg-gray-50 p-4 rounded-md min-h-[100px] mt-2">
+      Your asset will appear here...
+    </div>
+
+    <h3 class="text-xl font-semibold mt-6">Question Timeline</h3>
+    <div id="questionLog" class="timeline"></div>
+  </div>
+
+  <footer class="bg-blue-600 text-white text-center py-4 mt-6">
+    <p>© 2025 Question-to-Asset Generator | Inspired by Ann Geu-hwan's Philosophy</p>
+  </footer>
+
+  <script>
+    // IndexedDB setup
+    let db;
+    const dbRequest = indexedDB.open('QuestionAssetsDB', 1);
+
+    dbRequest.onupgradeneeded = (event) => {
+      db = event.target.result;
+      db.createObjectStore('sessions', { keyPath: 'id', autoIncrement: true });
+    };
+
+    dbRequest.onsuccess = (event) => {
+      db = event.target.result;
+      loadSessions();
+    };
+
+    // Session log
+    let sessionLog = [];
+
+    // Generate asset from question
+    function generateAsset() {
+      const question = document.getElementById('questionInput').value.trim();
+      const userId = document.getElementById('userId').value.trim() || 'Anonymous';
+      let category =
+        document.getElementById('categoryInput').value.trim() ||
+        document.getElementById('categorySelect').value;
+      const outputDiv = document.getElementById('output');
+
+      if (!question) {
+        outputDiv.innerHTML = '<p class="text-red-500">Please enter a question.</p>';
+        return;
+      }
+
+      if (!category) category = categorizeQuestion(question);
+
+      const asset = {
+        userId,
+        question,
+        timestamp: new Date().toLocaleString(),
+        insight: generateInsight(question),
+        action: suggestAction(question),
+        category,
+      };
+
+      sessionLog.push(asset);
+      saveToIndexedDB(asset);
+      updateLog();
+      outputDiv.innerHTML = `
+        <p><strong>User:</strong> ${asset.userId}</p>
+        <p><strong>Question:</strong> ${asset.question}</p>
+        <p><strong>Insight:</strong> ${asset.insight}</p>
+        <p><strong>Action:</strong> ${asset.action}</p>
+        <p><strong>Category:</strong> ${asset.category}</p>
+        <p><strong>Timestamp:</strong> ${asset.timestamp}</p>
+      `;
+    }
+
+    // Insight generation logic
+    function generateInsight(question) {
+      if (question.toLowerCase().includes('habit')) {
+        return 'Your habits can be systematized into routines that produce measurable outcomes, such as health or productivity assets.';
+      } else if (question.toLowerCase().includes('asset')) {
+        return 'Assets are created by structuring repeatable processes from your questions, turning ideas into tangible value.';
+      } else {
+        return 'This question can spark a recursive loop of inquiry, leading to new systems for personal growth.';
+      }
+    }
+
+    // Action suggestion logic
+    function suggestAction(question) {
+      if (question.toLowerCase().includes('habit')) {
+        return 'Document one habit daily for a week and categorize its outputs (e.g., time saved, health improved).';
+      } else if (question.toLowerCase().includes('asset')) {
+        return 'Create a visual map of your question’s potential outputs using a tool like HTML or markdown.';
+      } else {
+        return 'Refine this question in a follow-up dialogue to uncover specific opportunities.';
+      }
+    }
+
+    // Categorize question
+    function categorizeQuestion(question) {
+      if (question.toLowerCase().includes('habit')) return 'Personal Systems';
+      if (question.toLowerCase().includes('asset')) return 'Asset Creation';
+      return 'General Inquiry';
+    }
+
+    // Save to IndexedDB
+    function saveToIndexedDB(asset) {
+      const transaction = db.transaction(['sessions'], 'readwrite');
+      const store = transaction.objectStore('sessions');
+      store.add(asset);
+    }
+
+    // Load sessions from IndexedDB
+    function loadSessions() {
+      const transaction = db.transaction(['sessions'], 'readonly');
+      const store = transaction.objectStore('sessions');
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        sessionLog = request.result;
+        updateLog();
+      };
+    }
+
+    // Update timeline display
+    function updateLog() {
+      const logDiv = document.getElementById('questionLog');
+      logDiv.innerHTML = '';
+      sessionLog.forEach((entry, index) => {
+        logDiv.innerHTML += `
+          <div class="timeline-item">
+            <p><strong>Entry ${index + 1}:</strong> ${entry.question}</p>
+            <p><strong>User:</strong> ${entry.userId}</p>
+            <p><strong>Category:</strong> ${entry.category}</p>
+            <p><strong>Timestamp:</strong> ${entry.timestamp}</p>
+          </div>
+        `;
+      });
+    }
+
+    // Save session as JSON
+    function saveSession() {
+      if (sessionLog.length === 0) {
+        alert('No session data to save.');
+        return;
+      }
+
+      const dataStr = JSON.stringify(sessionLog, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `question-assets-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Generate HTML poster
+    function generatePoster() {
+      if (sessionLog.length === 0) {
+        alert('No session data to generate a poster.');
+        return;
+      }
+
+      let posterContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <title>Question-to-Asset Poster</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { text-align: center; color: #3b82f6; }
+            .asset { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+          </style>
+        </head>
+        <body>
+          <h1>Question-to-Asset Poster</h1>
+      `;
+
+      sessionLog.forEach((asset, index) => {
+        posterContent += `
+          <div class="asset">
+            <p><strong>Entry ${index + 1}:</strong> ${asset.question}</p>
+            <p><strong>User:</strong> ${asset.userId}</p>
+            <p><strong>Insight:</strong> ${asset.insight}</p>
+            <p><strong>Action:</strong> ${asset.action}</p>
+            <p><strong>Category:</strong> ${asset.category}</p>
+            <p><strong>Timestamp:</strong> ${asset.timestamp}</p>
+          </div>
+        `;
+      });
+
+      posterContent += `
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([posterContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `question-assets-poster-${new Date().toISOString().split('T')[0]}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Clear log
+    function clearLog() {
+      const transaction = db.transaction(['sessions'], 'readwrite');
+      const store = transaction.objectStore('sessions');
+      store.clear();
+      sessionLog = [];
+      document.getElementById('questionLog').innerHTML = '';
+      document.getElementById('output').innerHTML = 'Your asset will appear here...';
+      document.getElementById('questionInput').value = '';
+      document.getElementById('categoryInput').value = '';
+      document.getElementById('userId').value = '';
+    }
+  </script>
+</body>
+</html>
